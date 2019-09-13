@@ -1,5 +1,6 @@
 cc_library_shared {
     name: "libdisplayconfig",
+    owner: "qcom",
     vendor_available: true,
     cflags: [
         "-Wno-sign-conversion",

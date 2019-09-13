@@ -1,5 +1,6 @@
 cc_library_shared {
     name: "libqdMetaData",
+    owner: "qcom",
     vendor_available: true,
     cflags: [
         "-Wno-sign-conversion",
@@ -18,6 +19,7 @@ cc_library_shared {
 // Remove after WFD moves to use libqdMetaData directly
 cc_library_shared {
     name: "libqdMetaData.system",
+    owner: "qcom",
     vendor_available: true,
     cflags: [
         "-Wno-sign-conversion",
