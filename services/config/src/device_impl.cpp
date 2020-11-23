@@ -61,6 +61,7 @@ int DeviceImpl::CreateInstance(ClientContext *intf) {
 Return<void> DeviceImpl::registerClient(const hidl_string &client_name,
                                         const sp<IDisplayConfigCallback>& callback,
                                         registerClient_cb _hidl_cb) {
+  ALOGI("Register client:%s", client_name.c_str());
   int32_t error = 0;
   std::string client_name_str = client_name.c_str();
   if (client_name_str.empty()) {
@@ -158,6 +159,18 @@ void DeviceImpl::DeviceClientContext::NotifyQsyncChange(bool qsync_enabled, int3
   output_params.setToExternal(reinterpret_cast<uint8_t*>(&data), sizeof(data));
 
   auto status = callback_->perform(kControlQsyncCallback, output_params, {});
+  if (status.isDeadObject()) {
+    return;
+  }
+}
+
+void DeviceImpl::DeviceClientContext::NotifyIdleStatus(bool is_idle) {
+  bool data = {is_idle};
+  ByteStream output_params;
+
+  output_params.setToExternal(reinterpret_cast<uint8_t*>(&data), sizeof(data));
+
+  auto status = callback_->perform(kControlIdleStatusCallback, output_params, {});
   if (status.isDeadObject()) {
     return;
   }
@@ -716,6 +729,19 @@ void DeviceImpl::DeviceClientContext::ParseControlQsyncCallback(uint64_t client_
   _hidl_cb(error, {}, {});
 }
 
+void DeviceImpl::DeviceClientContext::ParseControlIdleStatusCallback(uint64_t client_handle,
+                                                                     const ByteStream &input_params,
+                                                                     perform_cb _hidl_cb) {
+  const bool *enable;
+
+  const uint8_t *data = input_params.data();
+  enable = reinterpret_cast<const bool*>(data);
+
+  int32_t error = intf_->ControlIdleStatusCallback(*enable);
+
+  _hidl_cb(error, {}, {});
+}
+
 void DeviceImpl::DeviceClientContext::ParseSendTUIEvent(const ByteStream &input_params,
                                                         perform_cb _hidl_cb) {
   const struct TUIEventParams *input_data =
@@ -790,6 +816,37 @@ void DeviceImpl::DeviceClientContext::ParseIsRCSupported(const ByteStream &input
   int32_t error = intf_->IsRCSupported(*disp_id, &supported);
   ByteStream output_params;
   output_params.setToExternal(reinterpret_cast<uint8_t*>(&supported), sizeof(bool));
+
+  _hidl_cb(error, output_params, {});
+}
+
+void DeviceImpl::DeviceClientContext::ParseIsSupportedConfigSwitch(const ByteStream &input_params,
+                                                                 perform_cb _hidl_cb) {
+  if (!intf_) {
+    _hidl_cb(-EINVAL, {}, {});
+    return;
+  }
+
+  const struct SupportedModesParams *supported_modes_data;
+  const uint8_t *data = input_params.data();
+  bool supported = false;
+  ByteStream output_params;
+  supported_modes_data = reinterpret_cast<const SupportedModesParams*>(data);
+
+  int32_t error = intf_->IsSupportedConfigSwitch(supported_modes_data->disp_id,
+                                               supported_modes_data->mode, &supported);
+  output_params.setToExternal(reinterpret_cast<uint8_t*>(&supported), sizeof(bool));
+  _hidl_cb(error, output_params, {});
+}
+
+void DeviceImpl::DeviceClientContext::ParseGetDisplayType(const ByteStream &input_params,
+                                                          perform_cb _hidl_cb) {
+  const uint8_t *data = input_params.data();
+  const uint64_t *physical_disp_id = reinterpret_cast<const uint64_t*>(data);
+  DisplayType disp_type = DisplayConfig::DisplayType::kInvalid;
+  int32_t error = intf_->GetDisplayType(*physical_disp_id, &disp_type);
+  ByteStream output_params;
+  output_params.setToExternal(reinterpret_cast<uint8_t*>(&disp_type), sizeof(DisplayType));
 
   _hidl_cb(error, output_params, {});
 }
@@ -938,6 +995,9 @@ Return<void> DeviceImpl::perform(uint64_t client_handle, uint32_t op_code,
     case kControlQsyncCallback:
       client->ParseControlQsyncCallback(client_handle, input_params, _hidl_cb);
       break;
+    case kControlIdleStatusCallback:
+      client->ParseControlIdleStatusCallback(client_handle, input_params, _hidl_cb);
+      break;
     case kSendTUIEvent:
       client->ParseSendTUIEvent(input_params, _hidl_cb);
       break;
@@ -952,6 +1012,12 @@ Return<void> DeviceImpl::perform(uint64_t client_handle, uint32_t op_code,
       break;
     case kIsRCSupported:
       client->ParseIsRCSupported(input_params, _hidl_cb);
+      break;
+    case kIsSupportedConfigSwitch:
+      client->ParseIsSupportedConfigSwitch(input_params, _hidl_cb);
+      break;
+    case kGetDisplayType:
+      client->ParseGetDisplayType(input_params, _hidl_cb);
       break;
     default:
       _hidl_cb(-EINVAL, {}, {});

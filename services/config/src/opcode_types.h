@@ -79,6 +79,9 @@ enum OpCode {
   kGetDisplayHwId = 43,
   kGetSupportedDisplayRefreshRates = 44,
   kIsRCSupported = 45,
+  kControlIdleStatusCallback = 46,
+  kIsSupportedConfigSwitch = 47,
+  kGetDisplayType = 48,
 
   kDestroy = 0xFFFF, // Destroy sequence execution
 };
